@@ -51,6 +51,8 @@ describe 'wiki pages', type: :feature, js: true do
   let(:content_second_version) do
     'The new content, second version'
   end
+  let(:attachments) { ::Components::Attachments.new }
+  let(:image_fixture) { Rails.root.join('spec/fixtures/files/image.png') }
 
   before do
     login_as user
@@ -72,12 +74,24 @@ describe 'wiki pages', type: :feature, js: true do
     # creating by accessing the page
     visit project_wiki_path(project, 'new page')
 
-    find('.ck-content').set(content_first_version)
+    # adding an image
+    target = find('.ck-content')
+    attachments.drag_and_drop_file(target, image_fixture)
 
+    # wait for the file to be uploaded
+    # TODO: wait for something observable
+    sleep(5)
+
+    # setting some text
+    # first press enter to avoid overriding the image
+    find('.ck-content').base.send_keys(:enter)
+    find('.ck-content').base.send_keys(content_first_version)
     click_button 'Save'
 
     expect(page).to have_selector('.title-container', text: 'New page')
     expect(page).to have_selector('.wiki-content', text: content_first_version)
+    expect(page).to have_selector('.wiki-content img')
+    expect(page).to have_selector('.attachments a', text: 'image.png')
 
     within '.toolbar-items' do
       click_on "Edit"

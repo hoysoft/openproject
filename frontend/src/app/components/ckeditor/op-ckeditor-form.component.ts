@@ -51,6 +51,7 @@ export class OpCkeditorFormComponent implements OnInit {
   public $element:JQuery;
   public formElement:JQuery;
   public wrappedTextArea:JQuery;
+  public $attachmentsElement:JQuery;
 
   // Remember if the user changed
   public changed:boolean = false;
@@ -83,6 +84,7 @@ export class OpCkeditorFormComponent implements OnInit {
     this.formElement = this.$element.closest('form');
     this.wrappedTextArea = this.formElement.find(this.textareaSelector);
     this.wrappedTextArea.hide();
+    this.$attachmentsElement = this.formElement.find('#attachments_fields')
     const wrapper = this.$element.find(`.${ckEditorReplacementClass}`);
     const context = { resource: this.resource,
                       previewContext: this.previewContext };
@@ -113,6 +115,22 @@ export class OpCkeditorFormComponent implements OnInit {
     this.formElement.on('submit.ckeditor', () => {
       const value = this.ckeditor.getData();
       this.wrappedTextArea.val(value);
+
+      const takenIds = this.$attachmentsElement.find("input[type='file']").map((index, input) => {
+        let match = (input.getAttribute('name') || '').match(/attachments\[(\d+)\]\[(?:file|id)\]/);
+
+        if (match) {
+          return parseInt(match[1]);
+        } else {
+          return 0;
+        }
+      });
+
+      const maxValue = takenIds.toArray().sort().pop() || 0;
+
+      jQuery.each(this.resource.attachments.elements, (index, attachment:HalResource) => {
+        this.$attachmentsElement.append(`<input type="hidden" name="attachments[${maxValue + index + 1}][id]" value="${attachment.id}">`);
+      });
 
       // Continue with submission
       return true;

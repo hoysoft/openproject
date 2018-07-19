@@ -48,7 +48,8 @@ module Redmine
             order(attachments_order)
           }, options.reverse_merge!(as: :container, dependent: :destroy)
 
-          attr_accessor :attachments_replacements
+          attr_accessor :attachments_replacements,
+                        :attachments_claimed
           send :include, Redmine::Acts::Attachable::InstanceMethods
         end
 
@@ -65,6 +66,8 @@ module Redmine
 
       module InstanceMethods
         def self.included(base)
+          base.after_save :persist_attachments_claimed
+
           base.extend ClassMethods
         end
 
@@ -82,14 +85,17 @@ module Redmine
 
         # Bulk attaches a set of files to an object
         def attach_files(attachments)
-          if attachments && attachments.is_a?(Hash)
+          if attachments&.is_a?(Hash)
             attachments.each_value do |attachment|
-              file = attachment['file']
-              next if !file || file.size.zero?
-              self.attachments.build(file: file,
-                                     container: self,
-                                     description: attachment['description'].to_s.strip,
-                                     author: User.current)
+              if (file = attachment['file']) && file && file.size.positive?
+                self.attachments.build(file: file,
+                                       container: self,
+                                       description: attachment['description'].to_s.strip,
+                                       author: User.current)
+              elsif (id = attachment['id'])
+                self.attachments_claimed ||= []
+                self.attachments_claimed << Attachment.find(id)
+              end
             end
           end
         end
@@ -99,6 +105,12 @@ module Redmine
         def allowed_to_on_attachment?(user, permissions)
           Array(permissions).any? do |permission|
             user.allowed_to?(permission, project)
+          end
+        end
+
+        def persist_attachments_claimed
+          attachments_claimed&.each do |attachment|
+            attachments.append(attachment)
           end
         end
 
