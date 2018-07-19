@@ -109,9 +109,15 @@ module Redmine
         end
 
         def persist_attachments_claimed
-          attachments_claimed&.each do |attachment|
-            attachments.append(attachment)
-          end
+          return unless attachments_claimed.any?
+
+          Attachment
+            .where(id: attachments_claimed.map(&:id))
+            .update_all(container_id: id, container_type: self.class.name)
+
+          attachments_claimed.clear
+
+          attachments.reload
         end
 
         module ClassMethods
